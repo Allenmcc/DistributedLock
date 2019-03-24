@@ -1,7 +1,7 @@
 package redis;
 
 /**
- * Created by liuyang on 2017/4/20.
+ * Created by chunchen.meng on 2019/3/12.
  */
 public class Test {
     public static void main(String[] args) {
@@ -11,4 +11,5 @@ public class Test {
             threadA.start();
         }
     }
+
 }

@@ -9,9 +9,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Created by liuyang on 2017/4/20.
+ * Created by chunchen.meng on 2019/3/12.
+ * 分布式锁的简单实现代码
  */
 public class DistributedLock {
+
     private final JedisPool jedisPool;
 
     public DistributedLock(JedisPool jedisPool) {
@@ -20,13 +22,12 @@ public class DistributedLock {
 
     /**
      * 加锁
-     * @param locaName  锁的key
-     * @param acquireTimeout  获取超时时间
-     * @param timeout   锁的超时时间
+     * @param lockName       锁的key
+     * @param acquireTimeout 获取超时时间
+     * @param timeout        锁的超时时间
      * @return 锁标识
      */
-    public String lockWithTimeout(String locaName,
-                                  long acquireTimeout, long timeout) {
+    public String lockWithTimeout(String lockName, long acquireTimeout, long timeout) {
         Jedis conn = null;
         String retIdentifier = null;
         try {
@@ -35,13 +36,15 @@ public class DistributedLock {
             // 随机生成一个value
             String identifier = UUID.randomUUID().toString();
             // 锁名，即key值
-            String lockKey = "lock:" + locaName;
+            String lockKey = "lock:" + lockName;
             // 超时时间，上锁后超过此时间则自动释放锁
-            int lockExpire = (int)(timeout / 1000);
+            int lockExpire = (int) (timeout / 1000);
 
             // 获取锁的超时时间，超过这个时间则放弃获取锁
             long end = System.currentTimeMillis() + acquireTimeout;
             while (System.currentTimeMillis() < end) {
+                //SETNX key val：当且仅当key不存在时，set一个key为val的字符串，返回1；
+                //若key存在，则什么都不做，返回0。 轮询等待锁
                 if (conn.setnx(lockKey, identifier) == 1) {
                     conn.expire(lockKey, lockExpire);
                     // 返回value值，用于释放锁时间确认
@@ -71,8 +74,8 @@ public class DistributedLock {
 
     /**
      * 释放锁
-     * @param lockName 锁的key
-     * @param identifier    释放锁的标识
+     * @param lockName   锁的key
+     * @param identifier 释放锁的标识
      * @return
      */
     public boolean releaseLock(String lockName, String identifier) {
@@ -90,6 +93,7 @@ public class DistributedLock {
                     transaction.del(lockKey);
                     List<Object> results = transaction.exec();
                     if (results == null) {
+                        //跳出当前循环
                         continue;
                     }
                     retFlag = true;
@@ -106,4 +110,5 @@ public class DistributedLock {
         }
         return retFlag;
     }
+
 }
