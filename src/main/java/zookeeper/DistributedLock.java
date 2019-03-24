@@ -13,7 +13,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 
 /**
- * Created by liuyang on 2017/4/20.
+ * Created by chunchen.meng on 2018/3/20.
  */
 public class DistributedLock implements Lock, Watcher {
     private ZooKeeper zk = null;
@@ -54,13 +54,20 @@ public class DistributedLock implements Lock, Watcher {
         }
     }
 
-    // 节点监视器
+    // 节点监视器  1.为啥最小节点的线程先通知到 2.为啥只通知最小节点的线程
+    // watch the pre node
+    @Override
     public void process(WatchedEvent event) {
+        System.out.println(Thread.currentThread().getName()+": "+event);
         if (this.countDownLatch != null) {
+            System.out.println("1process countDownLatch  "+ countDownLatch.getCount());
             this.countDownLatch.countDown();
+            System.out.println("2process countDownLatch  "+ countDownLatch.getCount());
         }
     }
 
+
+    @Override
     public void lock() {
         if (exceptionList.size() > 0) {
             throw new LockException(exceptionList.get(0));
@@ -80,6 +87,7 @@ public class DistributedLock implements Lock, Watcher {
         }
     }
 
+    @Override
     public boolean tryLock() {
         try {
             String splitStr = "_lock_";
@@ -89,7 +97,7 @@ public class DistributedLock implements Lock, Watcher {
             // 创建临时有序节点
             CURRENT_LOCK = zk.create(ROOT_LOCK + "/" + lockName + splitStr, new byte[0],
                     ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
-            System.out.println(CURRENT_LOCK + " 已经创建");
+            System.out.println(Thread.currentThread().getName()+" "+ CURRENT_LOCK + " 已经创建");
             // 取所有子节点
             List<String> subNodes = zk.getChildren(ROOT_LOCK, false);
             // 取出所有lockName的锁
@@ -100,7 +108,9 @@ public class DistributedLock implements Lock, Watcher {
                     lockObjects.add(node);
                 }
             }
+//            System.out.println(Thread.currentThread().getName() + lockObjects);
             Collections.sort(lockObjects);
+            System.out.println(Thread.currentThread().getName() + lockObjects);
             System.out.println(Thread.currentThread().getName() + " 的锁是 " + CURRENT_LOCK);
             // 若当前节点为最小节点，则获取锁成功
             if (CURRENT_LOCK.equals(ROOT_LOCK + "/" + lockObjects.get(0))) {
@@ -118,6 +128,7 @@ public class DistributedLock implements Lock, Watcher {
         return false;
     }
 
+    @Override
     public boolean tryLock(long timeout, TimeUnit unit) {
         try {
             if (this.tryLock()) {
@@ -132,22 +143,29 @@ public class DistributedLock implements Lock, Watcher {
 
     // 等待锁
     private boolean waitForLock(String prev, long waitTime) throws KeeperException, InterruptedException {
+
+        //watch true important ,watch the pre node
         Stat stat = zk.exists(ROOT_LOCK + "/" + prev, true);
 
         if (stat != null) {
-            System.out.println(Thread.currentThread().getName() + "等待锁 " + ROOT_LOCK + "/" + prev);
+            System.out.println(Thread.currentThread().getName() + " 等待锁 " + ROOT_LOCK + "/" + prev);
+            System.out.println("1waitForLock countDownLatch  "+ countDownLatch);
+
             this.countDownLatch = new CountDownLatch(1);
-            // 计数等待，若等到前一个节点消失，则precess中进行countDown，停止等待，获取锁
+            // 计数等待，若等到前一个节点消失，则process中进行countDown，停止等待，获取锁
             this.countDownLatch.await(waitTime, TimeUnit.MILLISECONDS);
+            System.out.println("2waitForLock countDownLatch  "+ countDownLatch.getCount());
             this.countDownLatch = null;
+
             System.out.println(Thread.currentThread().getName() + " 等到了锁");
         }
         return true;
     }
 
+    @Override
     public void unlock() {
         try {
-            System.out.println("释放锁 " + CURRENT_LOCK);
+            System.out.println(Thread.currentThread().getName()+" 释放锁 " + CURRENT_LOCK);
             zk.delete(CURRENT_LOCK, -1);
             CURRENT_LOCK = null;
             zk.close();
@@ -158,10 +176,12 @@ public class DistributedLock implements Lock, Watcher {
         }
     }
 
+    @Override
     public Condition newCondition() {
         return null;
     }
 
+    @Override
     public void lockInterruptibly() throws InterruptedException {
         this.lock();
     }

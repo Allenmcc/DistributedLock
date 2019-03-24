@@ -1,7 +1,7 @@
 package zookeeper;
 
 /**
- * Created by liuyang on 2017/4/20.
+ * Created by chunchen.meng on 2018/3/20.
  */
 public class Test {
     static int n = 500;
@@ -14,13 +14,15 @@ public class Test {
 
 
         Runnable runnable = new Runnable() {
+
+            @Override
             public void run() {
                 DistributedLock lock = null;
                 try {
                     lock = new DistributedLock("127.0.0.1:2181", "test1");
                     lock.lock();
                     secskill();
-                    System.out.println(Thread.currentThread().getName() + "正在运行");
+                    System.out.println(Thread.currentThread().getName() + " 正在运行");
                 } finally {
                     if (lock != null) {
                         lock.unlock();
@@ -29,7 +31,7 @@ public class Test {
             }
         };
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 3; i++) {
             Thread t = new Thread(runnable);
             t.start();
         }
